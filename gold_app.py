@@ -64,29 +64,43 @@ def is_cache_valid(name):
         return False
 
 def save_cache(name, series, source=""):
-    """将Series保存到本地缓存文件，并记录元信息"""
-    if CACHE_DIR is None:
-        return  # 文件缓存已禁用，静默跳过
-    # 空Series不保存
-    if series is None or (hasattr(series, 'empty') and series.empty):
-        return
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    # 保存数据（确保是Series格式）
-    if not isinstance(series, pd.Series):
-        series = pd.Series(series)
-    df = pd.DataFrame({"value": series})
-    df.index.name = "date"
-    df.to_csv(_cache_path(name))
-    # 保存元信息
-    meta = {
-        "cached_at": datetime.now().isoformat(),
-        "source": source,
-        "count": len(series),
-        "start": str(series.index[0]) if not series.empty else "",
-        "end": str(series.index[-1]) if not series.empty else "",
-    }
-    with open(_meta_path(name), 'w') as f:
-        json.dump(meta, f, ensure_ascii=False, indent=2)
+    """将Series保存到本地缓存文件，并记录元信息（完全防崩溃版）"""
+    try:
+        if CACHE_DIR is None:
+            return
+        # 空值/None/空序列 不保存
+        if series is None:
+            return
+        if hasattr(series, 'empty') and series.empty:
+            return
+        if hasattr(series, '__len__') and len(series) == 0:
+            return
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        # 统一转为 Series
+        s = pd.Series(series) if not isinstance(series, pd.Series) else series.copy()
+        # 确保 index 存在（这是 ValueError 的根因）
+        if s.index is None or (hasattr(s.index, 'size') and s.index.size == 0):
+            s = s.reset_index(drop=True)
+        # 构建 DataFrame（用 reset_index 确保有 index）
+        df = s.to_frame("value")
+        df.index.name = "date"
+        cache_path = _cache_path(name)
+        if cache_path:
+            df.to_csv(cache_path)
+        meta = {
+            "cached_at": datetime.now().isoformat(),
+            "source": source,
+            "count": len(s),
+            "start": str(s.index[0]) if len(s) > 0 else "",
+            "end": str(s.index[-1]) if len(s) > 0 else "",
+        }
+        meta_path = _meta_path(name)
+        if meta_path:
+            with open(meta_path, 'w') as f:
+                json.dump(meta, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        # 缓存保存失败不影响主流程，静默忽略
+        pass
 
 def load_cache(name):
     """从本地缓存文件加载Series"""
@@ -268,7 +282,14 @@ def _try_yahoo_gold(start_dt, end_dt):
             data = yf.download("GC=F", start=start_str, end=end_str,
                                session=session, progress=False, timeout=15)
             if data is not None and not data.empty:
-                return data["Close"].dropna(), True
+                close = data["Close"]
+                # 新版 yfinance 可能返回 DataFrame（MultiIndex列），需要展平
+                if isinstance(close, pd.DataFrame):
+                    close = close.iloc[:, 0]  # 取第一列作为 Series
+                s = close.dropna()
+                # 确保返回的是 Series
+                if isinstance(s, pd.Series) and not s.empty:
+                    return s, True
             time.sleep(2)
     except Exception:
         pass
@@ -413,7 +434,12 @@ def _try_yahoo_gld(start_dt, end_dt):
             data = yf.download("GLD", start=start_str, end=end_str,
                                session=session, progress=False, timeout=15)
             if data is not None and not data.empty:
-                return data["Close"].dropna(), True
+                close = data["Close"]
+                if isinstance(close, pd.DataFrame):
+                    close = close.iloc[:, 0]
+                s = close.dropna()
+                if isinstance(s, pd.Series) and not s.empty:
+                    return s, True
             time.sleep(2)
     except Exception:
         pass
