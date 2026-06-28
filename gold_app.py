@@ -66,8 +66,13 @@ def save_cache(name, series, source=""):
     """将Series保存到本地缓存文件，并记录元信息"""
     if CACHE_DIR is None:
         return  # 文件缓存已禁用，静默跳过
+    # 空Series不保存
+    if series is None or (hasattr(series, 'empty') and series.empty):
+        return
     os.makedirs(CACHE_DIR, exist_ok=True)
-    # 保存数据
+    # 保存数据（确保是Series格式）
+    if not isinstance(series, pd.Series):
+        series = pd.Series(series)
     df = pd.DataFrame({"value": series})
     df.index.name = "date"
     df.to_csv(_cache_path(name))
@@ -467,13 +472,18 @@ gld_series, gld_ok, gld_source = fetch_investment_proxy(start_dt, end_dt)
 
 # ========== 4. 合并主数据框 ==========
 data_dict = {}
-if gold_available:
+if gold_available and not (hasattr(gold_series, 'empty') and gold_series.empty):
     data_dict["金价"] = gold_series
-data_dict["10年TIPS收益率"] = tips
-data_dict["盈亏平衡通胀率"] = be
-data_dict["美元指数"] = dxy
-data_dict["VIX"] = vix
-data_dict["联邦基金利率"] = fed
+if not (hasattr(tips, 'empty') and tips.empty):
+    data_dict["10年TIPS收益率"] = tips
+if not (hasattr(be, 'empty') and be.empty):
+    data_dict["盈亏平衡通胀率"] = be
+if not (hasattr(dxy, 'empty') and dxy.empty):
+    data_dict["美元指数"] = dxy
+if not (hasattr(vix, 'empty') and vix.empty):
+    data_dict["VIX"] = vix
+if not (hasattr(fed, 'empty') and fed.empty):
+    data_dict["联邦基金利率"] = fed
 
 df = pd.DataFrame(data_dict)
 
