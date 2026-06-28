@@ -332,7 +332,7 @@ def fetch_gold_realtime():
             headers=headers,
             timeout=10
         )
-        text = resp.content.decode('gbk', errors='replace')
+        text = resp.content.decode('gbk', errors='ignore')
         if 'hf_GC' in text:
             parts = text.split('"')[1].split(',')
             if len(parts) >= 12 and parts[3]:
