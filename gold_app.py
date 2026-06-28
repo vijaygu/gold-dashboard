@@ -211,7 +211,10 @@ def fetch_fred_csv(series_id, start_date="2021-01-01", end_date=None):
         series = df.iloc[:, 0].dropna()
         # 保存到本地缓存
         if not series.empty:
-            save_cache(cache_name, series, f"FRED({series_id})")
+            try:
+                save_cache(cache_name, series, f"FRED({series_id})")
+            except Exception:
+                pass
         return series, True
     except Exception as e:
         # 网络失败，尝试加载过期缓存作为降级
@@ -244,19 +247,28 @@ def fetch_gold_price(start_dt, end_dt):
     # 第1级：Yahoo Finance GC=F（国外服务器可访问，国内可能被墙）
     yahoo_series, yahoo_ok = _try_yahoo_gold(start_dt, end_dt)
     if yahoo_ok and not yahoo_series.empty:
-        save_cache(cache_name, yahoo_series, "Yahoo Finance (GC=F)")
+        try:
+            save_cache(cache_name, yahoo_series, "Yahoo Finance (GC=F)")
+        except Exception:
+            pass
         return yahoo_series, True, "Yahoo Finance (GC=F 期货)"
 
     # 第2级：AkShare COMEX黄金期货（国内可访问，国外可能无法安装）
     akshare_series, akshare_ok, akshare_src = _try_akshare_gold()
     if akshare_ok and not akshare_series.empty:
-        save_cache(cache_name, akshare_series, akshare_src)
+        try:
+            save_cache(cache_name, akshare_series, akshare_src)
+        except Exception:
+            pass
         return akshare_series, True, akshare_src
 
     # 第3级：FRED（金价系列已下架，仅作为兜底尝试）
     fred_series, fred_ok = _try_fred_gold(start_dt, end_dt)
     if fred_ok and not fred_series.empty:
-        save_cache(cache_name, fred_series, "FRED")
+        try:
+            save_cache(cache_name, fred_series, "FRED")
+        except Exception:
+            pass
         return fred_series, True, "FRED (伦敦金定盘价)"
 
     # 所有来源均失败，尝试加载过期缓存作为降级
@@ -402,13 +414,19 @@ def fetch_investment_proxy(start_dt, end_dt):
     # 第1级：Yahoo Finance GLD ETF（国外可访问）
     yahoo_gld, yahoo_ok = _try_yahoo_gld(start_dt, end_dt)
     if yahoo_ok and not yahoo_gld.empty:
-        save_cache(cache_name, yahoo_gld, "Yahoo Finance (GLD ETF)")
+        try:
+            save_cache(cache_name, yahoo_gld, "Yahoo Finance (GLD ETF)")
+        except Exception:
+            pass
         return yahoo_gld, True, "Yahoo Finance (GLD ETF)"
 
     # 第2级：AkShare 上海金 Au99.99（国内可访问）
     akshare_gld, akshare_ok, akshare_src = _try_akshare_sge()
     if akshare_ok and not akshare_gld.empty:
-        save_cache(cache_name, akshare_gld, akshare_src)
+        try:
+            save_cache(cache_name, akshare_gld, akshare_src)
+        except Exception:
+            pass
         return akshare_gld, True, akshare_src
 
     # 所有来源均失败，尝试加载过期缓存作为降级
